@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
 
 	"movieService/internal/config"
@@ -32,7 +32,7 @@ func (r *Repository) OnStart(_ context.Context) error {
 	connectionUrl := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s", r.cfg.Postgres.Host, r.cfg.Postgres.Port, r.cfg.Postgres.User, r.cfg.Postgres.Password, r.cfg.Postgres.DBName, r.cfg.Postgres.SSLMode)
 
 	r.log.Info(connectionUrl)
-	pool, err := pgxpool.Connect(r.ctx, connectionUrl)
+	pool, err := pgxpool.New(r.ctx, connectionUrl)
 	if err != nil {
 		return err
 	}
@@ -72,99 +72,82 @@ const (
 )
 
 // ListMovies returns a list of movies with optional filtering by genres.
-func (r *Repository) ListMovies(ctx context.Context, req *entities.ListMoviesRequest) (*entities.ListMoviesResponse, error) {
-	if req.Page <= 0 {
-		req.Page = 1
+func (r *Repository) ListMovies(ctx context.Context, request *entities.ListMoviesRequest) (*entities.ListMoviesResponse, error) {
+	if request.Page <= 0 {
+		request.Page = 1
 	}
-	if req.PerPage <= 0 {
-		req.PerPage = 10
+	if request.PerPage <= 0 {
+		request.PerPage = 10
 	}
-	offset := (req.Page - 1) * req.PerPage
-
+	offset := (request.Page - 1) * request.PerPage
 	var rows pgx.Rows
 	var err error
-	if len(req.GenreIDs) > 0 {
-		rows, err = r.DB.Query(ctx, listMoviesByGenresSQL, pgx.Array(req.GenreIDs), req.PerPage, offset)
+	if len(request.GenreIDs) > 0 {
+		rows, err = r.DB.Query(
+			ctx,
+			listMoviesByGenresSQL,
+			request.GenreIDs,
+			request.PerPage,
+			offset,
+		)
 	} else {
-		rows, err = r.DB.Query(ctx, listMoviesSQL, req.PerPage, offset)
+		rows, err = r.DB.Query(ctx, listMoviesSQL, request.PerPage, offset)
 	}
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-
 	movies := make([]*entities.Movie, 0)
 	for rows.Next() {
-		dto := &entities.MovieDTO{
-			ID:          new(int),
-			Title:       new(string),
-			VideoURL:    new(string),
-			CoverURL:    new(string),
-			Description: new(string),
-			ReleaseDate: new(time.Time),
-			DurationMin: new(int),
-			CreatedAt:   new(time.Time),
-			UpdatedAt:   new(time.Time),
-		}
+		movieDTO := &entities.MovieDTO{}
 		if err := rows.Scan(
-			dto.ID,
-			dto.Title,
-			dto.VideoURL,
-			dto.CoverURL,
-			dto.Description,
-			dto.ReleaseDate,
-			dto.DurationMin,
-			dto.CreatedAt,
-			dto.UpdatedAt,
+			movieDTO.ID,
+			movieDTO.Title,
+			movieDTO.VideoURL,
+			movieDTO.CoverURL,
+			movieDTO.Description,
+			movieDTO.ReleaseDate,
+			movieDTO.DurationMin,
+			movieDTO.CreatedAt,
+			movieDTO.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
-		movies = append(movies, dto.ToEntity())
+		movies = append(movies, movieDTO.ToEntity())
 	}
 	if rows.Err() != nil {
 		return nil, rows.Err()
 	}
 
 	var total int
-	if len(req.GenreIDs) > 0 {
-		err = r.DB.QueryRow(ctx, countMoviesByGenresSQL, pgx.Array(req.GenreIDs)).Scan(&total)
+	if len(request.GenreIDs) > 0 {
+		err = r.DB.QueryRow(ctx, countMoviesByGenresSQL, request.GenreIDs).Scan(&total)
 	} else {
 		err = r.DB.QueryRow(ctx, countMoviesSQL).Scan(&total)
 	}
 	if err != nil {
 		return nil, err
 	}
-
 	return &entities.ListMoviesResponse{Movies: movies, Total: total}, nil
 }
 
 // GetMovie returns movie by id.
 func (r *Repository) GetMovie(ctx context.Context, movieID int) (*entities.Movie, error) {
-	dto := &entities.MovieDTO{
-		ID:          new(int),
-		Title:       new(string),
-		VideoURL:    new(string),
-		CoverURL:    new(string),
-		Description: new(string),
-		ReleaseDate: new(time.Time),
-		DurationMin: new(int),
-		CreatedAt:   new(time.Time),
-		UpdatedAt:   new(time.Time),
-	}
+	movieDTO := &entities.MovieDTO{}
 	if err := r.DB.QueryRow(ctx, getMovieSQL, movieID).Scan(
-		dto.ID,
-		dto.Title,
-		dto.VideoURL,
-		dto.CoverURL,
-		dto.Description,
-		dto.ReleaseDate,
-		dto.DurationMin,
-		dto.CreatedAt,
-		dto.UpdatedAt,
+		movieDTO.ID,
+		movieDTO.Title,
+		movieDTO.VideoURL,
+		movieDTO.CoverURL,
+		movieDTO.Description,
+		movieDTO.ReleaseDate,
+		movieDTO.DurationMin,
+		movieDTO.CreatedAt,
+		movieDTO.UpdatedAt,
 	); err != nil {
 		return nil, err
 	}
-	return dto.ToEntity(), nil
+	return movieDTO.ToEntity(), nil
 }
 
 // CreateMovie inserts new movie and related genres.
@@ -181,46 +164,37 @@ func (r *Repository) CreateMovie(ctx context.Context, movie *entities.Movie) (*e
 		}
 	}()
 
-	createdDTO := &entities.MovieDTO{
-		ID:          new(int),
-		CreatedAt:   new(time.Time),
-		UpdatedAt:   new(time.Time),
-		Title:       &movie.Title,
-		VideoURL:    &movie.VideoURL,
-		CoverURL:    &movie.CoverURL,
-		Description: &movie.Description,
-		ReleaseDate: &movie.ReleaseDate,
-		DurationMin: &movie.DurationMin,
-	}
+	movieDTO := movie.ToDTO(make([]int, 0))
 
 	err = tx.QueryRow(ctx, insertMovieSQL,
-		movie.Title,
-		movie.VideoURL,
-		movie.CoverURL,
-		movie.Description,
-		movie.ReleaseDate,
-		movie.DurationMin,
-	).Scan(createdDTO.ID, createdDTO.CreatedAt, createdDTO.UpdatedAt)
+		movieDTO.Title,
+		movieDTO.VideoURL,
+		movieDTO.CoverURL,
+		movieDTO.Description,
+		movieDTO.ReleaseDate,
+		movieDTO.DurationMin,
+	).Scan(movieDTO.ID, movieDTO.CreatedAt, movieDTO.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
 
-	created := createdDTO.ToEntity()
+	movie = movieDTO.ToEntity()
 
 	// genres are stored separately when provided via DTO
 	if dto, ok := interface{}(movie).(interface{ GetGenreIDs() []int }); ok {
 		for _, gID := range dto.GetGenreIDs() {
-			if _, err = tx.Exec(ctx, insertMovieGenreSQL, created.ID, gID); err != nil {
+			if _, err = tx.Exec(ctx, insertMovieGenreSQL, movie.ID, gID); err != nil {
 				return nil, err
 			}
 		}
 	}
 
-	return created, nil
+	return movie, nil
 }
 
 // DeleteMovie removes movie and related entities.
-func (r *Repository) DeleteMovie(ctx context.Context, movieID int) error {
+func (r *Repository) DeleteMovie(ctx context.Context, movie *entities.Movie) error {
+	movieDTO := movie.ToDTO(make([]int, 0))
 	tx, err := r.DB.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return err
@@ -233,16 +207,16 @@ func (r *Repository) DeleteMovie(ctx context.Context, movieID int) error {
 		}
 	}()
 
-	if _, err = tx.Exec(ctx, deleteMovieGenresSQL, movieID); err != nil {
+	if _, err = tx.Exec(ctx, deleteMovieGenresSQL, movieDTO.ID); err != nil {
 		return err
 	}
-	if _, err = tx.Exec(ctx, deleteMovieRatingsSQL, movieID); err != nil {
+	if _, err = tx.Exec(ctx, deleteMovieRatingsSQL, movieDTO.ID); err != nil {
 		return err
 	}
-	if _, err = tx.Exec(ctx, deleteMovieCommentsSQL, movieID); err != nil {
+	if _, err = tx.Exec(ctx, deleteMovieCommentsSQL, movieDTO.ID); err != nil {
 		return err
 	}
-	if _, err = tx.Exec(ctx, deleteMovieSQL, movieID); err != nil {
+	if _, err = tx.Exec(ctx, deleteMovieSQL, movieDTO.ID); err != nil {
 		return err
 	}
 
@@ -250,16 +224,16 @@ func (r *Repository) DeleteMovie(ctx context.Context, movieID int) error {
 }
 
 // ListRatings returns ratings for a movie with pagination.
-func (r *Repository) ListRatings(ctx context.Context, req *entities.ListRatingsRequest) (*entities.ListRatingsResponse, error) {
-	if req.Page <= 0 {
-		req.Page = 1
+func (r *Repository) ListRatings(ctx context.Context, request *entities.ListRatingsRequest) (*entities.ListRatingsResponse, error) {
+	if request.Page <= 0 {
+		request.Page = 1
 	}
-	if req.PerPage <= 0 {
-		req.PerPage = 10
+	if request.PerPage <= 0 {
+		request.PerPage = 10
 	}
-	offset := (req.Page - 1) * req.PerPage
+	offset := (request.Page - 1) * request.PerPage
 
-	rows, err := r.DB.Query(ctx, listRatingsSQL, req.MovieID, req.PerPage, offset)
+	rows, err := r.DB.Query(ctx, listRatingsSQL, request.MovieID, request.PerPage, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -267,32 +241,25 @@ func (r *Repository) ListRatings(ctx context.Context, req *entities.ListRatingsR
 
 	ratings := make([]*entities.Rating, 0)
 	for rows.Next() {
-		dto := &entities.RatingDTO{
-			ID:        new(int),
-			MovieID:   new(int),
-			UserID:    new(int),
-			Score:     new(int),
-			CreatedAt: new(time.Time),
-			UpdatedAt: new(time.Time),
-		}
+		ratingDTO := &entities.RatingDTO{}
 		if err := rows.Scan(
-			dto.ID,
-			dto.MovieID,
-			dto.UserID,
-			dto.Score,
-			dto.CreatedAt,
-			dto.UpdatedAt,
+			ratingDTO.ID,
+			ratingDTO.MovieID,
+			ratingDTO.UserID,
+			ratingDTO.Score,
+			ratingDTO.CreatedAt,
+			ratingDTO.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
-		ratings = append(ratings, dto.ToEntity())
+		ratings = append(ratings, ratingDTO.ToEntity())
 	}
 	if rows.Err() != nil {
 		return nil, rows.Err()
 	}
 
 	var total int
-	if err := r.DB.QueryRow(ctx, countRatingsSQL, req.MovieID).Scan(&total); err != nil {
+	if err := r.DB.QueryRow(ctx, countRatingsSQL, request.MovieID).Scan(&total); err != nil {
 		return nil, err
 	}
 
@@ -301,66 +268,53 @@ func (r *Repository) ListRatings(ctx context.Context, req *entities.ListRatingsR
 
 // GetRating returns rating by movie and rating id.
 func (r *Repository) GetRating(ctx context.Context, movieID int, ratingID int) (*entities.Rating, error) {
-	dto := &entities.RatingDTO{
-		ID:        new(int),
-		MovieID:   new(int),
-		UserID:    new(int),
-		Score:     new(int),
-		CreatedAt: new(time.Time),
-		UpdatedAt: new(time.Time),
-	}
+	ratingDTO := &entities.RatingDTO{}
 	if err := r.DB.QueryRow(ctx, getRatingSQL, movieID, ratingID).Scan(
-		dto.ID,
-		dto.MovieID,
-		dto.UserID,
-		dto.Score,
-		dto.CreatedAt,
-		dto.UpdatedAt,
+		ratingDTO.ID,
+		ratingDTO.MovieID,
+		ratingDTO.UserID,
+		ratingDTO.Score,
+		ratingDTO.CreatedAt,
+		ratingDTO.UpdatedAt,
 	); err != nil {
 		return nil, err
 	}
-	return dto.ToEntity(), nil
+	return ratingDTO.ToEntity(), nil
 }
 
 // CreateRating inserts new rating for movie.
 func (r *Repository) CreateRating(ctx context.Context, rating *entities.Rating) (*entities.Rating, error) {
-	dto := &entities.RatingDTO{
-		ID:        new(int),
-		CreatedAt: new(time.Time),
-		UpdatedAt: new(time.Time),
-		MovieID:   &rating.MovieID,
-		UserID:    &rating.UserID,
-		Score:     &rating.Score,
-	}
+	ratingDTO := rating.ToDTO()
 
 	if err := r.DB.QueryRow(ctx, insertRatingSQL, rating.MovieID, rating.UserID, rating.Score).Scan(
-		dto.ID,
-		dto.CreatedAt,
-		dto.UpdatedAt,
+		ratingDTO.ID,
+		ratingDTO.CreatedAt,
+		ratingDTO.UpdatedAt,
 	); err != nil {
 		return nil, err
 	}
 
-	return dto.ToEntity(), nil
+	return ratingDTO.ToEntity(), nil
 }
 
 // DeleteRating removes rating by id.
-func (r *Repository) DeleteRating(ctx context.Context, movieID int, ratingID int) error {
-	_, err := r.DB.Exec(ctx, deleteRatingSQL, movieID, ratingID)
+func (r *Repository) DeleteRating(ctx context.Context, rating *entities.Rating) error {
+	ratingDTO := rating.ToDTO()
+	_, err := r.DB.Exec(ctx, deleteRatingSQL, ratingDTO.MovieID, ratingDTO.ID)
 	return err
 }
 
 // ListComments returns comments for a movie with pagination.
-func (r *Repository) ListComments(ctx context.Context, req *entities.ListCommentsRequest) (*entities.ListCommentsResponse, error) {
-	if req.Page <= 0 {
-		req.Page = 1
+func (r *Repository) ListComments(ctx context.Context, request *entities.ListCommentsRequest) (*entities.ListCommentsResponse, error) {
+	if request.Page <= 0 {
+		request.Page = 1
 	}
-	if req.PerPage <= 0 {
-		req.PerPage = 10
+	if request.PerPage <= 0 {
+		request.PerPage = 10
 	}
-	offset := (req.Page - 1) * req.PerPage
+	offset := (request.Page - 1) * request.PerPage
 
-	rows, err := r.DB.Query(ctx, listCommentsSQL, req.MovieID, req.PerPage, offset)
+	rows, err := r.DB.Query(ctx, listCommentsSQL, request.MovieID, request.PerPage, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -368,32 +322,25 @@ func (r *Repository) ListComments(ctx context.Context, req *entities.ListComment
 
 	comments := make([]*entities.Comment, 0)
 	for rows.Next() {
-		dto := &entities.CommentDTO{
-			ID:        new(int),
-			MovieID:   new(int),
-			UserID:    new(int),
-			Text:      new(string),
-			CreatedAt: new(time.Time),
-			UpdatedAt: new(time.Time),
-		}
+		commentDTO := &entities.CommentDTO{}
 		if err := rows.Scan(
-			dto.ID,
-			dto.MovieID,
-			dto.UserID,
-			dto.Text,
-			dto.CreatedAt,
-			dto.UpdatedAt,
+			commentDTO.ID,
+			commentDTO.MovieID,
+			commentDTO.UserID,
+			commentDTO.Text,
+			commentDTO.CreatedAt,
+			commentDTO.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
-		comments = append(comments, dto.ToEntity())
+		comments = append(comments, commentDTO.ToEntity())
 	}
 	if rows.Err() != nil {
 		return nil, rows.Err()
 	}
 
 	var total int
-	if err := r.DB.QueryRow(ctx, countCommentsSQL, req.MovieID).Scan(&total); err != nil {
+	if err := r.DB.QueryRow(ctx, countCommentsSQL, request.MovieID).Scan(&total); err != nil {
 		return nil, err
 	}
 
@@ -402,7 +349,7 @@ func (r *Repository) ListComments(ctx context.Context, req *entities.ListComment
 
 // GetComment returns comment by movie and comment id.
 func (r *Repository) GetComment(ctx context.Context, movieID int, commentID int) (*entities.Comment, error) {
-	dto := &entities.CommentDTO{
+	commentDTO := &entities.CommentDTO{
 		ID:        new(int),
 		MovieID:   new(int),
 		UserID:    new(int),
@@ -411,117 +358,38 @@ func (r *Repository) GetComment(ctx context.Context, movieID int, commentID int)
 		UpdatedAt: new(time.Time),
 	}
 	if err := r.DB.QueryRow(ctx, getCommentSQL, movieID, commentID).Scan(
-		dto.ID,
-		dto.MovieID,
-		dto.UserID,
-		dto.Text,
-		dto.CreatedAt,
-		dto.UpdatedAt,
+		commentDTO.ID,
+		commentDTO.MovieID,
+		commentDTO.UserID,
+		commentDTO.Text,
+		commentDTO.CreatedAt,
+		commentDTO.UpdatedAt,
 	); err != nil {
 		return nil, err
 	}
-	return dto.ToEntity(), nil
+	return commentDTO.ToEntity(), nil
 }
 
 // CreateComment inserts new comment for movie.
 func (r *Repository) CreateComment(ctx context.Context, comment *entities.Comment) (*entities.Comment, error) {
-	dto := &entities.CommentDTO{
-		ID:        new(int),
-		CreatedAt: new(time.Time),
-		UpdatedAt: new(time.Time),
-		MovieID:   &comment.MovieID,
-		UserID:    &comment.UserID,
-		Text:      &comment.Text,
-	}
+	commentDTO := comment.ToDTO()
 
 	if err := r.DB.QueryRow(ctx, insertCommentSQL, comment.MovieID, comment.UserID, comment.Text).Scan(
-		dto.ID,
-		dto.CreatedAt,
-		dto.UpdatedAt,
+		commentDTO.ID,
+		commentDTO.CreatedAt,
+		commentDTO.UpdatedAt,
 	); err != nil {
 		return nil, err
 	}
 
-	return dto.ToEntity(), nil
+	return commentDTO.ToEntity(), nil
 }
 
 // DeleteComment removes comment by id.
-func (r *Repository) DeleteComment(ctx context.Context, movieID int, commentID int) error {
-	_, err := r.DB.Exec(ctx, deleteCommentSQL, movieID, commentID)
+func (r *Repository) DeleteComment(ctx context.Context, comment *entities.Comment) error {
+	commentDTO := comment.ToDTO()
+	_, err := r.DB.Exec(ctx, deleteCommentSQL, commentDTO.MovieID, commentDTO.ID)
 	return err
 }
 
-//// Login проверяет email/password, генерирует новый refresh-токен и возвращает его.
-//func (r *Repository) Login(ctx context.Context, user *entities.User) (*entities.RefreshToken, error) {
-//	userDTO := user.ToDTO()
-//	if err := r.DB.QueryRow(ctx, loginUserSQL, userDTO.Email, userDTO.Password).Scan(&userDTO.ID); err != nil {
-//		r.log.Error("Login failed", zap.Error(err), zap.String("email", *userDTO.Email))
-//		return nil, fmt.Errorf("invalid credentials: %w", err)
-//	}
-//
-//	refreshToken := entities.RefreshTokenDTO{}
-//	if err := r.DB.QueryRow(ctx, createTokenSQL, userDTO.ID).
-//		Scan(&refreshToken.Token, &refreshToken.IssuedAt, &refreshToken.ExpiresAt); err != nil {
-//		r.log.Error("Create refresh token failed", zap.Error(err), zap.Int("user_id", *userDTO.ID))
-//		return nil, fmt.Errorf("create refresh token: %w", err)
-//	}
-//
-//	return refreshToken.ToEntity(), nil
-//}
-//
-//// CreateUserToken создаёт новый токен пользователю.
-//func (r *Repository) CreateUserToken(ctx context.Context, token *entities.RefreshToken) (*entities.RefreshToken, error) {
-//	tokenDTO := token.ToDTO()
-//	// создаём новый токен
-//	if err := r.DB.QueryRow(ctx, createTokenSQL, tokenDTO.UserID).
-//		Scan(&tokenDTO.Token, &tokenDTO.IssuedAt, &tokenDTO.ExpiresAt); err != nil {
-//		r.log.Error("Create new token failed", zap.Error(err), zap.Int("user_id", *tokenDTO.UserID))
-//		return nil, fmt.Errorf("create new token: %w", err)
-//	}
-//
-//	return tokenDTO.ToEntity(), nil
-//}
-//func (r *Repository) GetUserIDByToken(ctx context.Context, token string) (int, error) {
-//	var userID int
-//	if err := r.DB.QueryRow(ctx, selectUserIDSQL, token).Scan(&userID); err != nil {
-//		r.log.Error("Refresh: invalid or expired token", zap.Error(err), zap.String("token", token))
-//		return 0, fmt.Errorf("invalid refresh token: %w", err)
-//	}
-//	return userID, nil
-//
-//}
-//
-//// RevokeToken отзывает переданный refresh-токен.
-//func (r *Repository) RevokeToken(ctx context.Context, token *entities.RefreshToken) error {
-//	if _, err := r.DB.Exec(ctx, revokeTokenSQL, token.Token); err != nil {
-//		r.log.Error("Logout failed", zap.Error(err), zap.String("token", token.Token))
-//		return fmt.Errorf("logout: %w", err)
-//	}
-//	return nil
-//}
-//
-//func (r *Repository) CreateUser(ctx context.Context, user *entities.User) (*entities.User, error) {
-//	userDTO := user.ToDTO()
-//	if err := r.DB.QueryRow(ctx, createUserSQL, userDTO.Email, userDTO.Password, userDTO.FullName, userDTO.Role, userDTO.Status).
-//		Scan(&userDTO.ID); err != nil {
-//		r.log.Error("Create new user failed", zap.Error(err))
-//		return nil, fmt.Errorf("create new user: %w", err)
-//	}
-//	return userDTO.ToEntity(), nil
-//}
-//
-//func (r *Repository) GetUser(ctx context.Context, user *entities.User) (*entities.User, error) {
-//	userDTO := user.ToDTO()
-//	if err := r.DB.QueryRow(ctx, getUserSQL, userDTO.ID).Scan(
-//		&userDTO.Email,
-//		&userDTO.FullName,
-//		&userDTO.Status,
-//		&userDTO.Role,
-//		&userDTO.CreatedAt,
-//		&userDTO.UpdatedAt,
-//	); err != nil {
-//		r.log.Error("Get user failed", zap.Error(err), zap.Int("user_id", *userDTO.ID))
-//		return nil, fmt.Errorf(" Get user: %w", err)
-//	}
-//	return userDTO.ToEntity(), nil
-//}
+var _ InterfaceRepository = (*Repository)(nil)

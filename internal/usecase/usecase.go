@@ -6,7 +6,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"movieService/internal/config"
 	"movieService/internal/entities"
-	"movieService/internal/repository"
 	"movieService/internal/repository/postgres"
 	"time"
 
@@ -15,18 +14,18 @@ import (
 	protos "movieService/pkg/proto/gen/go"
 )
 
-var _ repository.InterfaceRepository = (*postgres.Repository)(nil)
+var _ postgres.InterfaceRepository = (*postgres.Repository)(nil)
 var _ JWT.InterfaceJWT = (*JWT.ServiceJWT)(nil)
 
 type Usecase struct {
 	cfg  *config.Config
 	log  *zap.Logger
-	repo repository.InterfaceRepository
+	repo postgres.InterfaceRepository
 	ctx  context.Context
 	jwt  JWT.InterfaceJWT
 }
 
-func NewUsecase(logger *zap.Logger, repo repository.InterfaceRepository, cfg *config.Config, ctx context.Context, jwt JWT.InterfaceJWT,
+func NewUsecase(logger *zap.Logger, repo postgres.InterfaceRepository, cfg *config.Config, ctx context.Context, jwt JWT.InterfaceJWT,
 
 ) (*Usecase, error) {
 	return &Usecase{

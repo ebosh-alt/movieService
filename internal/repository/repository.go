@@ -20,7 +20,7 @@ func New() fx.Option {
 			},
 		),
 		fx.Decorate(func(log *zap.Logger) *zap.Logger {
-			return log.Named("usecase")
+			return log.Named("repository")
 		}),
 	)
 }
