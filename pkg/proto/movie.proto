@@ -1,0 +1,183 @@
+syntax = "proto3";
+option go_package = "/";
+package movie;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+
+// Жанр фильма
+message Genre {
+  int32 id = 1;
+  string name = 2;
+}
+
+// Фильм
+message Movie {
+  int32 id = 1;
+  string title = 2;
+  string video_url = 3;
+  string cover_url = 4;
+  string description = 5;
+  google.protobuf.Timestamp release_date = 6;
+  int32 duration_min = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+}
+
+// Рейтинг (звёзды) для фильма
+message Rating {
+  int32 id = 1;
+  int32 movie_id = 2;
+  int32 user_id = 3;
+  int32 score = 4;
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp updated_at = 6;
+}
+
+// Комментарий к фильму
+message Comment {
+  int32 id = 1;
+  int32 movie_id = 2;
+  int32 user_id = 3;
+  string text = 4;
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp updated_at = 6;
+}
+
+// ----- Запросы и ответы для Movie Service -----
+
+// 1. GET /api/v1/movies? page, per_page, genres=...
+message ListMoviesRequest {
+  int32 page = 1;             // номер страницы (1-based)
+  int32 per_page = 2;         // элементов на страницу
+  // если необходимо фильтровать по множеству жанров, передаём их ID
+  repeated int32 genre_ids = 3;
+}
+
+message ListMoviesResponse {
+  repeated Movie movies = 1;
+  int32 total = 2;            // общее количество фильмов, подходящих под фильтр
+}
+
+// 2. GET /api/v1/movies/{id}
+message GetMovieRequest {
+  int32 id = 1;
+}
+
+// 3. POST /api/v1/movies
+message CreateMovieRequest {
+  string title = 1;
+  string video_url = 2;
+  string cover_url = 3;
+  string description = 4;
+  google.protobuf.Timestamp release_date = 5;
+  int32 duration_min = 6;
+  // передаём просто список ID жанров
+  repeated int32 genre_ids = 7;
+}
+
+message CreateMovieResponse {
+  Movie movie = 1;
+}
+
+// 4. DELETE /api/v1/movies/{id}
+message DeleteMovieRequest {
+  int32 id = 1;
+}
+
+// ----- Запросы и ответы для работы с рейтингами -----
+// 5. GET /api/v1/movies/{id}/ratings? page, per_page
+message ListRatingsRequest {
+  int32 movie_id = 1;
+  int32 page = 2;
+  int32 per_page = 3;
+}
+
+message ListRatingsResponse {
+  repeated Rating ratings = 1;
+  int32 total = 2;
+}
+
+// 6. GET /api/v1/movies/{id}/ratings/{rid}
+message GetRatingRequest {
+  int32 movie_id = 1;
+  int32 rating_id = 2;
+}
+
+// 7. POST /api/v1/movies/{id}/ratings
+message CreateRatingRequest {
+  int32 movie_id = 1;
+  int32 user_id = 2;
+  int32 score = 3; // от 1 до 10
+}
+
+message CreateRatingResponse {
+  Rating rating = 1;
+}
+
+// 8. DELETE /api/v1/movies/{id}/ratings/{rid}
+message DeleteRatingRequest {
+  int32 movie_id = 1;
+  int32 rating_id = 2;
+}
+
+// ----- Запросы и ответы для работы с комментариями -----
+// 9. GET /api/v1/movies/{id}/comments? page, per_page
+message ListCommentsRequest {
+  int32 movie_id = 1;
+  int32 page = 2;
+  int32 per_page = 3;
+}
+
+message ListCommentsResponse {
+  repeated Comment comments = 1;
+  int32 total = 2;
+}
+
+// 10. GET /api/v1/movies/{id}/comments/{cid}
+message GetCommentRequest {
+  int32 movie_id = 1;
+  int32 comment_id = 2;
+}
+
+// 11. POST /api/v1/movies/{id}/comments
+message CreateCommentRequest {
+  int32 movie_id = 1;
+  int32 user_id = 2;
+  string text = 3;
+}
+
+message CreateCommentResponse {
+  Comment comment = 1;
+}
+
+// 12. DELETE /api/v1/movies/{id}/comments/{cid}
+message DeleteCommentRequest {
+  int32 movie_id = 1;
+  int32 comment_id = 2;
+}
+
+// ----- Сервис с RPC-методами, соответствующими REST-эндпоинтам -----
+// Хотя мы используем REST/HTTP+JSON↔Protobuf, здесь показываем gRPC-интерфейс
+// для удобства генерации Protobuf-моделей. При интеграции с gouber
+// будем маппить HTTP-маршруты на эти методы.
+service MovieService {
+  // Работа с фильмами
+  rpc ListMovies (ListMoviesRequest) returns (ListMoviesResponse);
+  rpc GetMovie (GetMovieRequest) returns (Movie);
+  rpc CreateMovie (CreateMovieRequest) returns (CreateMovieResponse);
+  rpc DeleteMovie (DeleteMovieRequest) returns (google.protobuf.Empty);
+
+  // Работа с рейтингами
+  rpc ListRatings (ListRatingsRequest) returns (ListRatingsResponse);
+  rpc GetRating (GetRatingRequest) returns (Rating);
+  rpc CreateRating (CreateRatingRequest) returns (CreateRatingResponse);
+  rpc DeleteRating (DeleteRatingRequest) returns (google.protobuf.Empty);
+
+  // Работа с комментариями
+  rpc ListComments (ListCommentsRequest) returns (ListCommentsResponse);
+  rpc GetComment (GetCommentRequest) returns (Comment);
+  rpc CreateComment (CreateCommentRequest) returns (CreateCommentResponse);
+  rpc DeleteComment (DeleteCommentRequest) returns (google.protobuf.Empty);
+}

@@ -1,0 +1,22 @@
+service_name: "movieService"
+
+Postgres:
+  host: db
+  port: 6132
+  user: postgres
+  password: n164838i
+  DBName: auth
+  sslMode: allow
+
+Server:
+  host: 0.0.0.0
+  port: ":50051"      # gRPC
+  httpPort: ":8081"   # HTTP для swagger.json
+
+Redis:
+  host: redis
+  port: 6379
+  password: password
+  db: 0
+
+Secret: lio2UbeLoKlYuJ7LDR+kSxUPQDHbaekq

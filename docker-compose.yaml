@@ -1,0 +1,39 @@
+services:
+  db:
+    build:
+      context: pkg/db_container
+    container_name: db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "6132:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks:
+      - my_net
+
+  migrate:
+    image: migrate/migrate
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    depends_on:
+      - db
+    volumes:
+      - ./migrations:/migrations
+    networks:
+      - my_net
+    entrypoint: >
+      sh -c "
+        sleep 5 &&
+        migrate -path=/migrations -database=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?sslmode=disable up
+      "
+
+volumes:
+  db_data:
+
+networks:
+  my_net:
