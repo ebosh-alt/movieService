@@ -8,12 +8,6 @@ type ListMoviesRequest struct {
 	GenreIDs []int `json:"genre_ids" form:"genre_ids"`
 }
 
-// ListMoviesResponse соответствует proto-сообщению:
-//
-//	message ListMoviesResponse {
-//	  repeated Movie movies = 1;
-//	  int32 total = 2;  // общее количество фильмов, подходящих под фильтр
-//	}
 type ListMoviesResponse struct {
 	Movies []*Movie `json:"movies"`
 	Total  int      `json:"total"`

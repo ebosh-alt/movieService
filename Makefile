@@ -22,3 +22,6 @@ auth_db:
 
 gen:
 	protoc --go_out=$(OUT_DIR) --go-grpc_out=$(OUT_DIR) $(PROTO_DIR)/movie.proto
+
+swag:
+	swag init --parseDependency --parseInternal --generalInfo internal/delivery/http/server/docs/docs.go --output docs

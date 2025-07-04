@@ -1,6 +1,6 @@
 syntax = "proto3";
 option go_package = "/";
-package movie;
+package movie_proto.v1;
 
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/empty.proto";
@@ -21,8 +21,9 @@ message Movie {
   string description = 5;
   google.protobuf.Timestamp release_date = 6;
   int32 duration_min = 7;
-  google.protobuf.Timestamp created_at = 8;
-  google.protobuf.Timestamp updated_at = 9;
+  repeated Genre genres = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp updated_at = 10;
 }
 
 // Рейтинг (звёзды) для фильма

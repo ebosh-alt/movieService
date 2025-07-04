@@ -58,6 +58,7 @@ type Movie struct {
 	Description string    `json:"description" db:"description"`
 	ReleaseDate time.Time `json:"release_date" db:"release_date"`
 	DurationMin int       `json:"duration_min" db:"duration_min"`
+	Genres      []Genre   // <- поле для жанров
 	CreatedAt   time.Time `json:"created_at" db:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
 }
@@ -70,13 +71,13 @@ type MovieDTO struct {
 	Description *string    `json:"description,omitempty"`
 	ReleaseDate *time.Time `json:"release_date,omitempty"`
 	DurationMin *int       `json:"duration_min,omitempty"`
+	GenreIDs    []int      // <- массив ID
+	GenreNames  []string   // <- массив имён
 	CreatedAt   *time.Time `json:"created_at,omitempty"`
 	UpdatedAt   *time.Time `json:"updated_at,omitempty"`
-	// Для передачи связей «movie ↔ genre» по ID:
-	GenreIDs *[]int `json:"genre_ids,omitempty"`
 }
 
-func (m *Movie) ToDTO(genreIDs []int) *MovieDTO {
+func (m *Movie) ToDTO(genreIDs []int, genreNames []string) *MovieDTO {
 	// genreIDs передаётся «снаружи» – т.е. тот slice int, который вы получили при JOIN (через movie_genres).
 	return &MovieDTO{
 		ID:          &m.ID,
@@ -88,12 +89,28 @@ func (m *Movie) ToDTO(genreIDs []int) *MovieDTO {
 		DurationMin: &m.DurationMin,
 		CreatedAt:   &m.CreatedAt,
 		UpdatedAt:   &m.UpdatedAt,
-		GenreIDs:    &genreIDs,
+		GenreIDs:    genreIDs,
+		GenreNames:  genreNames,
 	}
 }
 
 func (d *MovieDTO) ToEntity() *Movie {
 	m := &Movie{}
+	if d.GenreIDs != nil {
+		genres := make([]Genre, 0, len(d.GenreIDs))
+		var names []string
+		if d.GenreNames != nil {
+			names = d.GenreNames
+		}
+		for i, id := range d.GenreIDs {
+			name := ""
+			if i < len(names) {
+				name = names[i]
+			}
+			genres = append(genres, Genre{ID: id, Name: name})
+		}
+		m.Genres = genres
+	}
 	if d.ID != nil {
 		m.ID = *d.ID
 	}

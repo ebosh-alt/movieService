@@ -1,9 +1,17 @@
 package config
 
+import "time"
+
 type Config struct {
 	Server   ServerConfig   `yaml:"Server"`
 	Postgres PostgresConfig `yaml:"Postgres"`
+	JWT      JWTConfig      `yaml:"JWT"`
 	Secret   string         `yaml:"Secret"`
+}
+
+type JWTConfig struct {
+	Secret string        `yaml:"Secret"`
+	TTL    time.Duration `yaml:"TTL"`
 }
 
 type PostgresConfig struct {

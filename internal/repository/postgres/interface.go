@@ -9,7 +9,7 @@ import (
 type InterfaceRepository interface {
 	ListMovies(ctx context.Context, request *entities.ListMoviesRequest) (*entities.ListMoviesResponse, error)
 	GetMovie(ctx context.Context, movieID int) (*entities.Movie, error)
-	CreateMovie(ctx context.Context, movie *entities.Movie) (*entities.Movie, error)
+	CreateMovie(ctx context.Context, movie *entities.Movie, genreIDs []int) (*entities.Movie, error)
 	DeleteMovie(ctx context.Context, movie *entities.Movie) error
 
 	ListRatings(ctx context.Context, request *entities.ListRatingsRequest) (*entities.ListRatingsResponse, error)

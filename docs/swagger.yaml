@@ -1,0 +1,563 @@
+basePath: /api/v1
+definitions:
+  __.Comment:
+    properties:
+      created_at:
+        $ref: '#/definitions/timestamppb.Timestamp'
+      id:
+        type: integer
+      movie_id:
+        type: integer
+      text:
+        type: string
+      updated_at:
+        $ref: '#/definitions/timestamppb.Timestamp'
+      user_id:
+        type: integer
+    type: object
+  __.CreateCommentRequest:
+    properties:
+      movie_id:
+        type: integer
+      text:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  __.CreateCommentResponse:
+    properties:
+      comment:
+        $ref: '#/definitions/__.Comment'
+    type: object
+  __.CreateMovieRequest:
+    properties:
+      cover_url:
+        type: string
+      description:
+        type: string
+      duration_min:
+        type: integer
+      genre_ids:
+        description: передаём просто список ID жанров
+        items:
+          type: integer
+        type: array
+      release_date:
+        $ref: '#/definitions/timestamppb.Timestamp'
+      title:
+        type: string
+      video_url:
+        type: string
+    type: object
+  __.CreateMovieResponse:
+    properties:
+      movie:
+        $ref: '#/definitions/__.Movie'
+    type: object
+  __.CreateRatingRequest:
+    properties:
+      movie_id:
+        type: integer
+      score:
+        description: от 1 до 10
+        type: integer
+      user_id:
+        type: integer
+    type: object
+  __.CreateRatingResponse:
+    properties:
+      rating:
+        $ref: '#/definitions/__.Rating'
+    type: object
+  __.Genre:
+    properties:
+      id:
+        type: integer
+      name:
+        type: string
+    type: object
+  __.ListCommentsResponse:
+    properties:
+      comments:
+        items:
+          $ref: '#/definitions/__.Comment'
+        type: array
+      total:
+        type: integer
+    type: object
+  __.ListMoviesResponse:
+    properties:
+      movies:
+        items:
+          $ref: '#/definitions/__.Movie'
+        type: array
+      total:
+        description: общее количество фильмов, подходящих под фильтр
+        type: integer
+    type: object
+  __.ListRatingsResponse:
+    properties:
+      ratings:
+        items:
+          $ref: '#/definitions/__.Rating'
+        type: array
+      total:
+        type: integer
+    type: object
+  __.Movie:
+    properties:
+      cover_url:
+        type: string
+      created_at:
+        $ref: '#/definitions/timestamppb.Timestamp'
+      description:
+        type: string
+      duration_min:
+        type: integer
+      genres:
+        items:
+          $ref: '#/definitions/__.Genre'
+        type: array
+      id:
+        type: integer
+      release_date:
+        $ref: '#/definitions/timestamppb.Timestamp'
+      title:
+        type: string
+      updated_at:
+        $ref: '#/definitions/timestamppb.Timestamp'
+      video_url:
+        type: string
+    type: object
+  __.Rating:
+    properties:
+      created_at:
+        $ref: '#/definitions/timestamppb.Timestamp'
+      id:
+        type: integer
+      movie_id:
+        type: integer
+      score:
+        type: integer
+      updated_at:
+        $ref: '#/definitions/timestamppb.Timestamp'
+      user_id:
+        type: integer
+    type: object
+  emptypb.Empty:
+    type: object
+  server.errorResponse:
+    properties:
+      message:
+        type: string
+    type: object
+  timestamppb.Timestamp:
+    properties:
+      nanos:
+        description: |-
+          Non-negative fractions of a second at nanosecond resolution. Negative
+          second values with fractions must still have non-negative nanos values
+          that count forward in time. Must be from 0 to 999,999,999
+          inclusive.
+        type: integer
+      seconds:
+        description: |-
+          Represents seconds of UTC time since Unix epoch
+          1970-01-01T00:00:00Z. Must be from 0001-01-01T00:00:00Z to
+          9999-12-31T23:59:59Z inclusive.
+        type: integer
+    type: object
+host: localhost:8000
+info:
+  contact: {}
+  description: REST-документация для MovieService.
+  title: MovieService API
+  version: "1.0"
+paths:
+  /movies:
+    get:
+      consumes:
+      - application/json
+      description: Возвращает постраничный список фильмов с опциональным фильтром
+        по жанрам.
+      parameters:
+      - default: 1
+        description: Номер страницы
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: Элементов на страницу
+        in: query
+        name: per_page
+        type: integer
+      - collectionFormat: csv
+        description: Фильтр по жанрам
+        in: query
+        items:
+          type: integer
+        name: genres
+        type: array
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/__.ListMoviesResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/server.errorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/server.errorResponse'
+      summary: Список фильмов
+      tags:
+      - movies
+    post:
+      consumes:
+      - application/json
+      description: Создаёт новый фильм в системе.
+      parameters:
+      - description: Данные фильма
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/__.CreateMovieRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/__.CreateMovieResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/server.errorResponse'
+      summary: Создать фильм
+      tags:
+      - movies
+  /movies/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Удаляет фильм по его ID.
+      parameters:
+      - description: ID фильма
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/emptypb.Empty'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/server.errorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/server.errorResponse'
+      summary: Удалить фильм
+      tags:
+      - movies
+    get:
+      consumes:
+      - application/json
+      description: Возвращает подробную информацию о фильме по его ID.
+      parameters:
+      - description: ID фильма
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/__.Movie'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/server.errorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/server.errorResponse'
+      summary: Получить фильм
+      tags:
+      - movies
+  /movies/{id}/comments:
+    get:
+      consumes:
+      - application/json
+      description: Возвращает постраничный список комментариев к фильму.
+      parameters:
+      - description: ID фильма
+        in: path
+        name: id
+        required: true
+        type: integer
+      - default: 1
+        description: Номер страницы
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: Элементов на страницу
+        in: query
+        name: per_page
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/__.ListCommentsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/server.errorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/server.errorResponse'
+      summary: Список комментариев
+      tags:
+      - comments
+    post:
+      consumes:
+      - application/json
+      description: Создаёт новый комментарий к фильму.
+      parameters:
+      - description: Данные комментария
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/__.CreateCommentRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/__.CreateCommentResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/server.errorResponse'
+      summary: Создать комментарий
+      tags:
+      - comments
+  /movies/{id}/comments/{cid}:
+    delete:
+      consumes:
+      - application/json
+      description: Удаляет комментарий по ID фильма и ID комментария.
+      parameters:
+      - description: ID фильма
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: ID комментария
+        in: path
+        name: cid
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/emptypb.Empty'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/server.errorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/server.errorResponse'
+      summary: Удалить комментарий
+      tags:
+      - comments
+    get:
+      consumes:
+      - application/json
+      description: Возвращает конкретный комментарий по ID фильма и ID комментария.
+      parameters:
+      - description: ID фильма
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: ID комментария
+        in: path
+        name: cid
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/__.Comment'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/server.errorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/server.errorResponse'
+      summary: Получить комментарий
+      tags:
+      - comments
+  /movies/{id}/ratings:
+    get:
+      consumes:
+      - application/json
+      description: Возвращает постраничный список оценок для указанного фильма.
+      parameters:
+      - description: ID фильма
+        in: path
+        name: id
+        required: true
+        type: integer
+      - default: 1
+        description: Номер страницы
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: Элементов на страницу
+        in: query
+        name: per_page
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/__.ListRatingsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/server.errorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/server.errorResponse'
+      summary: Список оценок
+      tags:
+      - ratings
+    post:
+      consumes:
+      - application/json
+      description: Создаёт новую оценку для фильма.
+      parameters:
+      - description: Данные оценки
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/__.CreateRatingRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/__.CreateRatingResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/server.errorResponse'
+      summary: Создать оценку
+      tags:
+      - ratings
+  /movies/{id}/ratings/{rid}:
+    delete:
+      consumes:
+      - application/json
+      description: Удаляет оценку по ID фильма и ID оценки.
+      parameters:
+      - description: ID фильма
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: ID оценки
+        in: path
+        name: rid
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/emptypb.Empty'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/server.errorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/server.errorResponse'
+      summary: Удалить оценку
+      tags:
+      - ratings
+    get:
+      consumes:
+      - application/json
+      description: Возвращает конкретную оценку по ID фильма и ID оценки.
+      parameters:
+      - description: ID фильма
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: ID оценки
+        in: path
+        name: rid
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/__.Rating'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/server.errorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/server.errorResponse'
+      summary: Получить оценку
+      tags:
+      - ratings
+swagger: "2.0"

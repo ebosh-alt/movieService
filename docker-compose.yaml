@@ -1,8 +1,8 @@
 services:
-  db:
+  db_movie_service:
     build:
       context: pkg/db_container
-    container_name: db
+    container_name: db_movie_service
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
@@ -21,7 +21,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     depends_on:
-      - db
+      - db_movie_service
     volumes:
       - ./migrations:/migrations
     networks:
